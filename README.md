@@ -70,13 +70,6 @@ func main() {
 }
 ```
 
-## Examples
-
-The repository includes example programs:
-
-1. `hi.bf` - Prints "Hi!"
-2. Add your own examples here!
-
 ## Memory Model
 
 The interpreter uses a tape of 30,000 cells, each containing an 8-bit unsigned integer (0-255). The tape pointer starts at cell 0 and can move left or right (but not beyond tape boundaries).
