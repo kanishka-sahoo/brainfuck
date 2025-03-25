@@ -9,7 +9,6 @@ import (
 
 const TapeSize = 30000
 
-// Interpreter represents a Brainfuck interpreter instance
 type Interpreter struct {
 	tape       [TapeSize]byte
 	dataPtr    int
@@ -17,25 +16,44 @@ type Interpreter struct {
 	program    string
 	input      io.Reader
 	output     io.Writer
+	brackets   map[int]int
 }
 
-// New creates a new Brainfuck interpreter with the given program
 func New(program string) *Interpreter {
-	return &Interpreter{
-		program: program,
-		input:   os.Stdin,
-		output:  os.Stdout,
+	i := &Interpreter{
+		program:  program,
+		input:    os.Stdin,
+		output:   os.Stdout,
+		brackets: make(map[int]int),
+	}
+	i.parseLoops()
+	return i
+}
+
+func (i *Interpreter) parseLoops() {
+	stack := make([]int, 0)
+	for pos := 0; pos < len(i.program); pos++ {
+		switch i.program[pos] {
+		case '[':
+			stack = append(stack, pos)
+		case ']':
+			if len(stack) == 0 {
+				return // unmatched ']' will be caught during execution
+			}
+			openPos := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			i.brackets[openPos] = pos
+			i.brackets[pos] = openPos
+		}
 	}
 }
 
-// WithIO sets custom input and output streams for the interpreter
 func (i *Interpreter) WithIO(input io.Reader, output io.Writer) *Interpreter {
 	i.input = input
 	i.output = output
 	return i
 }
 
-// Run executes the Brainfuck program
 func (i *Interpreter) Run() error {
 	for i.programPtr < len(i.program) {
 		switch i.program[i.programPtr] {
@@ -62,33 +80,20 @@ func (i *Interpreter) Run() error {
 			i.tape[i.dataPtr] = input
 		case '[':
 			if i.tape[i.dataPtr] == 0 {
-				bracketCount := 1
-				for bracketCount > 0 {
-					i.programPtr++
-					if i.programPtr >= len(i.program) {
-						return fmt.Errorf("unmatched [")
-					}
-					if i.program[i.programPtr] == '[' {
-						bracketCount++
-					} else if i.program[i.programPtr] == ']' {
-						bracketCount--
-					}
+				if matchPos, ok := i.brackets[i.programPtr]; ok {
+					i.programPtr = matchPos
+				} else {
+					return fmt.Errorf("unmatched [")
 				}
 			}
 		case ']':
-			if i.tape[i.dataPtr] != 0 {
-				bracketCount := 1
-				for bracketCount > 0 {
-					i.programPtr--
-					if i.programPtr < 0 {
-						return fmt.Errorf("unmatched ]")
-					}
-					if i.program[i.programPtr] == ']' {
-						bracketCount++
-					} else if i.program[i.programPtr] == '[' {
-						bracketCount--
-					}
+			if matchPos, ok := i.brackets[i.programPtr]; ok {
+				if i.tape[i.dataPtr] != 0 {
+					i.programPtr = matchPos
+					continue
 				}
+			} else {
+				return fmt.Errorf("unmatched ]")
 			}
 		}
 		i.programPtr++
